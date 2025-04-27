@@ -2,6 +2,7 @@ import type React from "react"
 import { Sidebar } from "@/components/dashboard/layout/sidebar"
 import { Header } from "@/components/dashboard/layout/header"
 import { ThemeProvider } from "@/components/theme-provider"
+import { ProtectedRoute } from "@/components/auth/protected-route"
 
 export default function AdminLayout({
   children,
@@ -10,13 +11,15 @@ export default function AdminLayout({
 }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-      <div className="flex min-h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 md:ml-64">
-          <Header />
-          <main className="flex-1 p-4 md:p-6">{children}</main>
+      <ProtectedRoute>
+        <div className="flex min-h-screen bg-gray-50">
+          <Sidebar />
+          <div className="flex flex-col flex-1 md:ml-64">
+            <Header />
+            <main className="flex-1 p-4 md:p-6">{children}</main>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     </ThemeProvider>
   )
 }

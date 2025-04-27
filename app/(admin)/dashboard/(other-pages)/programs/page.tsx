@@ -1,167 +1,203 @@
-import { Button } from "@/components/ui/button"
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Plus, Search, MoreHorizontal, FileText } from "lucide-react"
-
-// Sample data
-const programs = [
-  {
-    id: "PRG-001",
-    name: "Diabetes Management",
-    description: "Comprehensive program for managing diabetes through medication, diet, and lifestyle changes.",
-    enrolledClients: 124,
-    status: "active",
-    startDate: "2022-01-15",
-  },
-  {
-    id: "PRG-002",
-    name: "Hypertension Control",
-    description: "Program focused on blood pressure management and cardiovascular health.",
-    enrolledClients: 98,
-    status: "active",
-    startDate: "2022-02-10",
-  },
-  {
-    id: "PRG-003",
-    name: "Prenatal Care",
-    description: "Comprehensive care for pregnant women including regular check-ups, screenings, and education.",
-    enrolledClients: 45,
-    status: "active",
-    startDate: "2022-03-05",
-  },
-  {
-    id: "PRG-004",
-    name: "Mental Health Support",
-    description: "Program providing therapy, medication management, and support for mental health conditions.",
-    enrolledClients: 67,
-    status: "active",
-    startDate: "2022-04-20",
-  },
-  {
-    id: "PRG-005",
-    name: "Cardiac Rehabilitation",
-    description: "Supervised program to help patients recover from heart attacks, heart surgery, or heart failure.",
-    enrolledClients: 32,
-    status: "active",
-    startDate: "2022-05-12",
-  },
-  {
-    id: "PRG-006",
-    name: "Weight Management",
-    description: "Program focused on healthy weight loss and maintenance through diet and exercise.",
-    enrolledClients: 78,
-    status: "active",
-    startDate: "2022-06-08",
-  },
-  {
-    id: "PRG-007",
-    name: "Smoking Cessation",
-    description: "Program to help patients quit smoking through counseling and medication.",
-    enrolledClients: 23,
-    status: "inactive",
-    startDate: "2022-07-15",
-  },
-  {
-    id: "PRG-008",
-    name: "Substance Abuse Recovery",
-    description: "Comprehensive program for recovery from substance abuse disorders.",
-    enrolledClients: 19,
-    status: "active",
-    startDate: "2022-08-22",
-  },
-]
-
-function getStatusBadge(status: string) {
-  switch (status) {
-    case "active":
-      return (
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-          Active
-        </Badge>
-      )
-    case "inactive":
-      return (
-        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
-          Inactive
-        </Badge>
-      )
-    default:
-      return <Badge variant="outline">{status}</Badge>
-  }
-}
+import { type Program, ProgramService } from "@/lib/program-service"
+import { useToast } from "@/components/ui/use-toast"
+import { eventBus, EVENTS } from "@/lib/event-bus"
+import { ProgramsHeader } from "@/components/dashboard/programs/programs-header"
+import { ProgramsSearch } from "@/components/dashboard/programs/programs-search"
+import { ProgramsTable } from "@/components/dashboard/programs/programs-table"
+import { ProgramCreateDialog } from "@/components/dashboard/programs/program-create-dialog"
+import { ProgramEditDialog } from "@/components/dashboard/programs/program-edit-dialog"
 
 export default function ProgramsPage() {
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [filteredPrograms, setFilteredPrograms] = useState<Program[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [createFormData, setCreateFormData] = useState({
+    name: "",
+    description: "",
+  })
+  const [editFormData, setEditFormData] = useState({
+    uuid: "",
+    name: "",
+    description: "",
+  })
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const { toast } = useToast()
+
+  // Fetch programs
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        setLoading(true)
+        const data = await ProgramService.getPrograms()
+        setPrograms(data)
+        setFilteredPrograms(data)
+        setError(null)
+      } catch (err) {
+        console.error("Error fetching programs:", err)
+        setError("Failed to load programs. Please try again later.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPrograms()
+  }, [])
+
+  // Filter programs based on search term
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredPrograms(programs)
+    } else {
+      const filtered = programs.filter(
+        (program) =>
+          program.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          program.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          program.uuid.toLowerCase().includes(searchTerm.toLowerCase()),
+      )
+      setFilteredPrograms(filtered)
+    }
+    setCurrentPage(1) // Reset to first page when search changes
+  }, [searchTerm, programs])
+
+  // Handle create form input changes
+  const handleCreateInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setCreateFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+  }
+
+  // Handle edit form input changes
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setEditFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }))
+  }
+
+  // Open edit dialog with program data
+  const handleEditClick = (program: Program) => {
+    setEditFormData({
+      uuid: program.uuid,
+      name: program.name,
+      description: program.description,
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  // Handle create form submission
+  const handleCreateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!createFormData.name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Program name is required",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+      const newProgram = await ProgramService.createProgram({
+        name: createFormData.name,
+        description: createFormData.description,
+      })
+
+      // Add the new program to the list
+      setPrograms((prev) => [newProgram, ...prev])
+
+      // Publish event to notify sidebar about the new program
+      eventBus.publish(EVENTS.PROGRAM_CREATED, newProgram)
+
+      // Reset form and close dialog
+      setCreateFormData({ name: "", description: "" })
+      setIsCreateDialogOpen(false)
+
+      toast({
+        title: "Success",
+        description: "Program created successfully",
+      })
+    } catch (err) {
+      console.error("Error creating program:", err)
+      toast({
+        title: "Error",
+        description: "Failed to create program. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Handle edit form submission
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    try {
+      setIsSubmitting(true)
+      const updatedProgram = await ProgramService.updateProgram(editFormData.uuid, {
+        description: editFormData.description,
+      })
+
+      // Update the program in the list
+      setPrograms((prev) => prev.map((program) => (program.uuid === updatedProgram.uuid ? updatedProgram : program)))
+
+      // Close dialog
+      setIsEditDialogOpen(false)
+
+      toast({
+        title: "Success",
+        description: "Program updated successfully",
+      })
+    } catch (err) {
+      console.error("Error updating program:", err)
+      toast({
+        title: "Error",
+        description: "Failed to update program. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Programs</h1>
-          <p className="text-muted-foreground">Manage and view all health programs</p>
-        </div>
-        <div className="mt-4 md:mt-0 flex items-center gap-2">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Program
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[525px]">
-              <DialogHeader>
-                <DialogTitle>Create New Program</DialogTitle>
-                <DialogDescription>Add a new health program to the system</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="program-name">Program Name</Label>
-                  <Input id="program-name" placeholder="Enter program name" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="program-description">Description</Label>
-                  <Textarea id="program-description" placeholder="Enter program description" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="program-start-date">Start Date</Label>
-                  <Input id="program-start-date" type="date" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline">Cancel</Button>
-                <Button>Create Program</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
+      <ProgramsHeader onAddProgram={() => setIsCreateDialogOpen(true)} />
+
+      <ProgramCreateDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        formData={createFormData}
+        onInputChange={handleCreateInputChange}
+        onSubmit={handleCreateSubmit}
+        isSubmitting={isSubmitting}
+      />
+
+      <ProgramEditDialog
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        formData={editFormData}
+        onInputChange={handleEditInputChange}
+        onSubmit={handleEditSubmit}
+        isSubmitting={isSubmitting}
+      />
 
       <Card>
         <CardHeader className="pb-3">
@@ -169,107 +205,17 @@ export default function ProgramsPage() {
           <CardDescription>View and manage all health programs in the system</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-6 items-start md:items-center">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search programs..." className="w-full pl-8" />
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <Button variant="outline" size="sm">
-                <FileText className="mr-2 h-4 w-4" />
-                Export
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Filter
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Filter by</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Status</DropdownMenuItem>
-                  <DropdownMenuItem>Start Date</DropdownMenuItem>
-                  <DropdownMenuItem>Enrollment Count</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+          <ProgramsSearch searchTerm={searchTerm} onSearchChange={setSearchTerm} />
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Program Name</TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Enrolled Clients</TableHead>
-                  <TableHead>Start Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {programs.map((program) => (
-                  <TableRow key={program.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{program.name}</div>
-                        <div className="text-sm text-muted-foreground truncate max-w-[300px]">
-                          {program.description}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{program.id}</TableCell>
-                    <TableCell>{program.enrolledClients}</TableCell>
-                    <TableCell>{new Date(program.startDate).toLocaleDateString()}</TableCell>
-                    <TableCell>{getStatusBadge(program.status)}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Open menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem>View Details</DropdownMenuItem>
-                          <DropdownMenuItem>Edit Program</DropdownMenuItem>
-                          <DropdownMenuItem>View Enrolled Clients</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">
-                            {program.status === "active" ? "Deactivate Program" : "Activate Program"}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="mt-4">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious href="#" />
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#" isActive>
-                    1
-                  </PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#">2</PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationNext href="#" />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
+          <ProgramsTable
+            programs={filteredPrograms}
+            loading={loading}
+            error={error}
+            searchTerm={searchTerm}
+            currentPage={currentPage}
+            setCurrentPage={setCurrentPage}
+            onEditClick={handleEditClick}
+          />
         </CardContent>
       </Card>
     </div>

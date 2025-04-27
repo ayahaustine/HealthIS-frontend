@@ -1,144 +1,147 @@
-import { Button } from "@/components/ui/button"
+"use client"
+
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Search, MoreHorizontal, FileText, UserPlus, AlertTriangle } from "lucide-react"
-import Link from "next/link"
+import { useToast } from "@/components/ui/use-toast"
+import { type Client, ClientService } from "@/lib/client-service"
+import { ProgramService } from "@/lib/program-service"
+import { type CreateEnrollmentRequest, EnrollmentService } from "@/lib/enrollment-service"
 
-// Sample data
-const clients = [
-  {
-    id: "CL-001",
-    name: "John Smith",
-    age: 45,
-    gender: "Male",
-    programs: ["Diabetes Management", "Hypertension"],
-    lastVisit: "2023-04-15",
-    riskScore: "low",
-  },
-  {
-    id: "CL-002",
-    name: "Sarah Johnson",
-    age: 32,
-    gender: "Female",
-    programs: ["Prenatal Care"],
-    lastVisit: "2023-04-18",
-    riskScore: "medium",
-  },
-  {
-    id: "CL-003",
-    name: "Michael Brown",
-    age: 67,
-    gender: "Male",
-    programs: ["Cardiac Rehabilitation", "Hypertension"],
-    lastVisit: "2023-04-10",
-    riskScore: "high",
-  },
-  {
-    id: "CL-004",
-    name: "Emily Davis",
-    age: 28,
-    gender: "Female",
-    programs: ["Mental Health"],
-    lastVisit: "2023-04-05",
-    riskScore: "low",
-  },
-  {
-    id: "CL-005",
-    name: "Robert Wilson",
-    age: 52,
-    gender: "Male",
-    programs: ["Diabetes Management"],
-    lastVisit: "2023-04-12",
-    riskScore: "medium",
-  },
-  {
-    id: "CL-006",
-    name: "Jennifer Lee",
-    age: 41,
-    gender: "Female",
-    programs: ["Hypertension", "Weight Management"],
-    lastVisit: "2023-04-17",
-    riskScore: "low",
-  },
-  {
-    id: "CL-007",
-    name: "David Martinez",
-    age: 59,
-    gender: "Male",
-    programs: ["Cardiac Rehabilitation"],
-    lastVisit: "2023-04-08",
-    riskScore: "high",
-  },
-  {
-    id: "CL-008",
-    name: "Lisa Taylor",
-    age: 36,
-    gender: "Female",
-    programs: ["Prenatal Care"],
-    lastVisit: "2023-04-14",
-    riskScore: "medium",
-  },
-]
-
-function getRiskBadge(risk: string) {
-  switch (risk) {
-    case "high":
-      return (
-        <Badge variant="destructive" className="flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" /> High Risk
-        </Badge>
-      )
-    case "medium":
-      return (
-        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-          Medium Risk
-        </Badge>
-      )
-    default:
-      return (
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-          Low Risk
-        </Badge>
-      )
-  }
-}
+import { ClientsHeader } from "@/components/dashboard/clients/clients-header"
+import { ClientsSearch } from "@/components/dashboard/clients/clients-search"
+import { ClientsTable } from "@/components/dashboard/clients/clients-table"
+import { ClientsPagination } from "@/components/dashboard/clients/clients-pagination"
+import { EnrollmentDialog } from "@/components/dashboard/clients/enrollment-dialog"
 
 export default function ClientsPage() {
+  const [clients, setClients] = useState<Client[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [programs, setPrograms] = useState<any[]>([])
+  const [loadingPrograms, setLoadingPrograms] = useState(false)
+  const [enrollDialogOpen, setEnrollDialogOpen] = useState(false)
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [isEnrolling, setIsEnrolling] = useState(false)
+  const { toast } = useToast()
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5
+
+  useEffect(() => {
+    async function fetchClients() {
+      try {
+        setLoading(true)
+        const data = await ClientService.getClients()
+        setClients(data)
+        setError(null)
+      } catch (err) {
+        setError("Failed to load clients. Please try again later.")
+        console.error("Error fetching clients:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchClients()
+  }, [])
+
+  useEffect(() => {
+    fetchPrograms()
+  }, [])
+
+  async function fetchPrograms() {
+    try {
+      setLoadingPrograms(true)
+      const data = await ProgramService.getPrograms()
+      setPrograms(data)
+    } catch (err) {
+      console.error("Error fetching programs:", err)
+      toast({
+        title: "Error",
+        description: "Failed to load programs. Please try again later.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingPrograms(false)
+    }
+  }
+
+  // Reset to first page when search term changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
+
+  // Filter clients based on search term
+  const filteredClients = clients.filter((client) => {
+    const fullName = `${client.first_name} ${client.last_name}`.toLowerCase()
+    return fullName.includes(searchTerm.toLowerCase()) || client.uuid.toLowerCase().includes(searchTerm.toLowerCase())
+  })
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredClients.length / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentClients = filteredClients.slice(startIndex, endIndex)
+
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return
+    setCurrentPage(page)
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value)
+  }
+
+  const openEnrollDialog = (client: Client) => {
+    setSelectedClient(client)
+    setEnrollDialogOpen(true)
+  }
+
+  const onSubmitEnrollment = async (data: { program: string }) => {
+    if (!selectedClient) return
+
+    try {
+      setIsEnrolling(true)
+
+      const enrollmentData: CreateEnrollmentRequest = {
+        client: selectedClient.uuid,
+        program: data.program,
+      }
+
+      await EnrollmentService.createEnrollment(enrollmentData)
+
+      // Refresh client data after successful enrollment
+      const updatedClient = await ClientService.getClient(selectedClient.uuid)
+
+      // Update the client in the clients list
+      setClients((prevClients) =>
+        prevClients.map((client) => (client.uuid === updatedClient.uuid ? updatedClient : client)),
+      )
+
+      toast({
+        title: "Success",
+        description: `${selectedClient.first_name} ${selectedClient.last_name} has been enrolled in the program.`,
+        variant: "default",
+      })
+
+      setEnrollDialogOpen(false)
+    } catch (err) {
+      console.error("Error enrolling client in program:", err)
+      toast({
+        title: "Error",
+        description: "Failed to enroll client in program. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsEnrolling(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
-          <p className="text-muted-foreground">Manage and view all client records</p>
-        </div>
-        <div className="mt-4 md:mt-0 flex items-center gap-2">
-          <Link href="/dashboard/clients/register">
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Register New Client
-            </Button>
-          </Link>
-        </div>
-      </div>
+      <ClientsHeader />
 
       <Card>
         <CardHeader className="pb-3">
@@ -146,136 +149,43 @@ export default function ClientsPage() {
           <CardDescription>View and manage all registered clients in the system</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-6 items-start md:items-center">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="search" placeholder="Search clients..." className="w-full pl-8" />
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <Button variant="outline" size="sm">
-                <FileText className="mr-2 h-4 w-4" />
-                Export
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Filter
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Filter by</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Risk Level</DropdownMenuItem>
-                  <DropdownMenuItem>Program</DropdownMenuItem>
-                  <DropdownMenuItem>Last Visit</DropdownMenuItem>
-                  <DropdownMenuItem>Gender</DropdownMenuItem>
-                  <DropdownMenuItem>Age Group</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
+          <ClientsSearch
+            searchTerm={searchTerm}
+            onSearchChange={handleSearchChange}
+            clients={filteredClients} // Pass the filtered clients array
+          />
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Client</TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Programs</TableHead>
-                  <TableHead>Last Visit</TableHead>
-                  <TableHead>Risk Level</TableHead>
-                  <TableHead className="w-[80px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clients.map((client) => (
-                  <TableRow key={client.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage
-                            src={`/abstract-geometric-shapes.png?height=40&width=40&query=${client.name}`}
-                            alt={client.name}
-                          />
-                          <AvatarFallback>
-                            {client.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="font-medium">{client.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {client.age} yrs, {client.gender}
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>{client.id}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {client.programs.map((program) => (
-                          <Badge key={program} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                            {program}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>{new Date(client.lastVisit).toLocaleDateString()}</TableCell>
-                    <TableCell>{getRiskBadge(client.riskScore)}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Open menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/clients/${client.id}`}>View Profile</Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>Enroll in Program</DropdownMenuItem>
-                          <DropdownMenuItem>Schedule Appointment</DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-red-600">Archive Client</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <ClientsTable
+            clients={currentClients}
+            loading={loading}
+            error={error}
+            searchTerm={searchTerm}
+            programsAvailable={programs.length > 0}
+            onEnrollClick={openEnrollDialog}
+          />
 
-          <div className="mt-4">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious href="#" />
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#" isActive>
-                    1
-                  </PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#">2</PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationLink href="#">3</PaginationLink>
-                </PaginationItem>
-                <PaginationItem>
-                  <PaginationNext href="#" />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
+          {!loading && !error && filteredClients.length > 0 && (
+            <ClientsPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              totalItems={filteredClients.length}
+              onPageChange={handlePageChange}
+            />
+          )}
         </CardContent>
       </Card>
+
+      <EnrollmentDialog
+        open={enrollDialogOpen}
+        onOpenChange={setEnrollDialogOpen}
+        client={selectedClient}
+        programs={programs}
+        loadingPrograms={loadingPrograms}
+        isEnrolling={isEnrolling}
+        onSubmit={onSubmitEnrollment}
+      />
     </div>
   )
 }
