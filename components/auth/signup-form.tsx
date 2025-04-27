@@ -1,62 +1,70 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { z } from "zod"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+
+// Form validation schema
+const formSchema = z
+  .object({
+    firstName: z.string().min(2, "First name must be at least 2 characters"),
+    lastName: z.string().min(2, "Last name must be at least 2 characters"),
+    email: z.string().email("Please enter a valid email address"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    password2: z.string().min(6, "Password must be at least 6 characters"),
+    agreeToTerms: z.boolean().refine((val) => val === true, {
+      message: "You must agree to the Terms and Conditions",
+    }),
+  })
+  .refine((data) => data.password === data.password2, {
+    message: "Passwords do not match",
+    path: ["password2"],
+  })
+
+type FormValues = z.infer<typeof formSchema>
 
 export function SignUpForm() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [firstName, setFirstName] = useState("")
-  const [lastName, setLastName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [agreeToTerms, setAgreeToTerms] = useState(false)
-  const router = useRouter()
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const { toast } = useToast()
+  const { register, isLoading } = useAuth()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!agreeToTerms) {
-      toast({
-        title: "Error",
-        description: "You must agree to the Terms and Conditions to create an account.",
-        variant: "destructive",
-      })
-      return
-    }
+  // Initialize form
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      password2: "",
+      agreeToTerms: false,
+    },
+  })
 
-    setIsLoading(true)
-
-    // Simulate registration
-    setTimeout(() => {
-      setIsLoading(false)
+  const handleSubmit = async (values: FormValues) => {
+    try {
+      await register(values.firstName, values.lastName, values.email, values.password)
       toast({
         title: "Account created",
-        description: "Your account has been created successfully.",
+        description: "Your account has been created successfully. Please sign in.",
       })
-      router.push("/signin")
-    }, 1500)
-  }
-
-  const handleGoogleSignUp = () => {
-    setIsLoading(true)
-    // Simulate Google authentication
-    setTimeout(() => {
-      setIsLoading(false)
+    } catch (error) {
       toast({
-        title: "Success",
-        description: "Your account has been created with Google successfully.",
+        title: "Error",
+        description: "There was a problem creating your account. Please try again.",
+        variant: "destructive",
       })
-      router.push("/dashboard")
-    }, 1500)
+    }
   }
 
   return (
@@ -71,7 +79,12 @@ export function SignUpForm() {
           type="button"
           variant="outline"
           className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-normal justify-center h-11"
-          onClick={handleGoogleSignUp}
+          onClick={() =>
+            toast({
+              title: "Google Sign Up",
+              description: "Google authentication is not implemented yet.",
+            })
+          }
         >
           <svg className="mr-2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
             <path
@@ -103,99 +116,157 @@ export function SignUpForm() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="firstName" className="text-sm font-medium">
-                First Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="firstName"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Enter your first name"
-                required
-                className="w-full h-11"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>
+                      First Name <span className="text-red-500">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter your first name" className="w-full h-11" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lastName" className="text-sm font-medium">
-                Last Name <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="lastName"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                placeholder="Enter your last name"
-                required
-                className="w-full h-11"
-              />
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium">
-              Email <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              required
-              className="w-full h-11"
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem className="space-y-2">
+                    <FormLabel>
+                      Last Name <span className="text-red-500">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="Enter your last name" className="w-full h-11" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <FormLabel>
+                    Email <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="Enter your email" className="w-full h-11" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium">
-              Password <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                className="w-full h-11 pr-10"
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-start space-x-2">
-            <input
-              type="checkbox"
-              id="terms"
-              checked={agreeToTerms}
-              onChange={(e) => setAgreeToTerms(e.target.checked)}
-              className="h-4 w-4 mt-1 rounded border-gray-300 text-[#4F46E5] focus:ring-[#4F46E5]"
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <FormLabel>
+                    Password <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        className="w-full h-11 pr-10"
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <Label htmlFor="terms" className="text-sm font-normal">
-              By creating an account means you agree to the{" "}
-              <Link href="/terms" className="text-[#4F46E5] hover:underline">
-                Terms and Conditions
-              </Link>
-              , and our{" "}
-              <Link href="/privacy" className="text-[#4F46E5] hover:underline">
-                Privacy Policy
-              </Link>
-            </Label>
-          </div>
 
-          <Button type="submit" className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white h-11" disabled={isLoading}>
-            {isLoading ? "Creating account..." : "Sign Up"}
-          </Button>
-        </form>
+            <FormField
+              control={form.control}
+              name="password2"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <FormLabel>
+                    Confirm Password <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        className="w-full h-11 pr-10"
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="agreeToTerms"
+              render={({ field }) => (
+                <FormItem className="flex items-start space-x-2">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={field.onChange}
+                      className="h-4 w-4 mt-1 rounded border-gray-300 text-[#4F46E5] focus:ring-[#4F46E5]"
+                    />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <Label htmlFor="terms" className="text-sm font-normal">
+                      By creating an account means you agree to the{" "}
+                      <Link href="/terms" className="text-[#4F46E5] hover:underline">
+                        Terms and Conditions
+                      </Link>
+                      , and our{" "}
+                      <Link href="/privacy" className="text-[#4F46E5] hover:underline">
+                        Privacy Policy
+                      </Link>
+                    </Label>
+                    <FormMessage />
+                  </div>
+                </FormItem>
+              )}
+            />
+
+            <Button
+              type="submit"
+              className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white h-11"
+              disabled={isLoading}
+            >
+              {isLoading ? "Creating account..." : "Sign Up"}
+            </Button>
+          </form>
+        </Form>
 
         <div className="text-center mt-6">
           <p className="text-gray-500 text-sm">

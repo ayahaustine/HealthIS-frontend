@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -10,42 +8,62 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context"
+import { z } from "zod"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+
+// Form validation schema
+const formSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  rememberMe: z.boolean().optional(),
+})
+
+type FormValues = z.infer<typeof formSchema>
 
 export function SignInForm() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const { login, isLoading } = useAuth()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+  // Initialize form
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      rememberMe: false,
+    },
+  })
 
-    // Simulate authentication
-    setTimeout(() => {
-      setIsLoading(false)
+  const handleSubmit = async (values: FormValues) => {
+    try {
+      await login(values.email, values.password)
       toast({
         title: "Success",
         description: "You have been signed in successfully.",
+        variant: "default",
+        className: "bg-green-50 border-green-200 text-green-800",
       })
-      router.push("/dashboard")
-    }, 1500)
-  }
+    } catch (error) {
+      let errorMessage = "Invalid email or password. Try again!"
 
-  const handleGoogleSignIn = () => {
-    setIsLoading(true)
-    // Simulate Google authentication
-    setTimeout(() => {
-      setIsLoading(false)
+      // Check if the error is from our API
+      if (error instanceof Error) {
+        if (error.message === "No active account found with the given credentials") {
+          errorMessage = "Invalid email or password. Try again!"
+        }
+      }
+
       toast({
-        title: "Success",
-        description: "You have been signed in with Google successfully.",
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
       })
-      router.push("/dashboard")
-    }, 1500)
+    }
   }
 
   return (
@@ -60,7 +78,12 @@ export function SignInForm() {
           type="button"
           variant="outline"
           className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-normal justify-center h-11"
-          onClick={handleGoogleSignIn}
+          onClick={() =>
+            toast({
+              title: "Google Sign In",
+              description: "Google authentication is not implemented yet.",
+            })
+          }
         >
           <svg className="mr-2" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24">
             <path
@@ -92,70 +115,88 @@ export function SignInForm() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-medium">
-              Email <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="info@gmail.com"
-              required
-              className="w-full h-11"
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <FormLabel>
+                    Email <span className="text-red-500">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input type="email" placeholder="info@gmail.com" className="w-full h-11" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-sm font-medium">
-                Password <span className="text-red-500">*</span>
-              </Label>
-            </div>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                required
-                className="w-full h-11 pr-10"
-              />
-              <button
-                type="button"
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
-              </button>
-            </div>
-          </div>
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <FormLabel>
+                      Password <span className="text-red-500">*</span>
+                    </FormLabel>
+                    <Link href="/forgot-password" className="text-sm text-[#4F46E5] hover:underline">
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        className="w-full h-11 pr-10"
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="remember"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-[#4F46E5] focus:ring-[#4F46E5]"
-              />
-              <Label htmlFor="remember" className="text-sm font-normal">
-                Keep me logged in
-              </Label>
-            </div>
-            <Link href="/forgot-password" className="text-sm text-[#4F46E5] hover:underline">
-              Forgot password?
-            </Link>
-          </div>
+            <FormField
+              control={form.control}
+              name="rememberMe"
+              render={({ field }) => (
+                <FormItem className="flex items-center space-x-2 space-y-0">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      checked={field.value}
+                      onChange={field.onChange}
+                      className="h-4 w-4 rounded border-gray-300 text-[#4F46E5] focus:ring-[#4F46E5]"
+                    />
+                  </FormControl>
+                  <Label htmlFor="remember" className="text-sm font-normal">
+                    Keep me logged in
+                  </Label>
+                </FormItem>
+              )}
+            />
 
-          <Button type="submit" className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white h-11" disabled={isLoading}>
-            {isLoading ? "Signing in..." : "Sign in"}
-          </Button>
-        </form>
+            <Button
+              type="submit"
+              className="w-full bg-[#4F46E5] hover:bg-[#4338CA] text-white h-11"
+              disabled={isLoading}
+            >
+              {isLoading ? "Signing in..." : "Sign in"}
+            </Button>
+          </form>
+        </Form>
 
         <div className="text-center mt-6">
           <p className="text-gray-500 text-sm">

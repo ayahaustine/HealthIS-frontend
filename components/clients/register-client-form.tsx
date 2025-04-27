@@ -10,7 +10,6 @@ import { CalendarIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -19,6 +18,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
 import { type County, getSubCountiesByName } from "@/lib/kenya-data"
+import { ClientService, type CreateClientRequest } from "@/lib/client-service"
 
 // Form schema with validation
 const formSchema = z.object({
@@ -40,7 +40,7 @@ const formSchema = z.object({
   subCounty: z.string({
     required_error: "Please select a sub-county.",
   }),
-  gender: z.enum(["male", "female", "other"], {
+  gender: z.enum(["male", "female"], {
     required_error: "Please select a gender.",
   }),
 })
@@ -97,16 +97,34 @@ export function RegisterClientForm() {
     form.setValue("subCounty", "")
   }
 
+  // Map form gender to API gender format
+  const mapGenderToApiFormat = (gender: string): string => {
+    return gender === "male" ? "M" : "F"
+  }
+
+  // Format date to YYYY-MM-DD
+  const formatDateForApi = (date: Date): string => {
+    return format(date, "yyyy-MM-dd")
+  }
+
   // Form submission handler
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsLoading(true)
 
     try {
-      // In a real application, you would send this data to your API
-      console.log("Form values:", values)
+      // Format the data for the API
+      const clientData: CreateClientRequest = {
+        first_name: values.firstName,
+        last_name: values.lastName,
+        dob: formatDateForApi(values.dateOfBirth),
+        phone_number: values.phoneNumber,
+        county: values.county,
+        sub_county: values.subCounty,
+        gender: mapGenderToApiFormat(values.gender),
+      }
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Send the data to the API
+      await ClientService.createClient(clientData)
 
       toast({
         title: "Client registered successfully",
@@ -119,6 +137,7 @@ export function RegisterClientForm() {
       // Redirect to clients page
       router.push("/dashboard/clients")
     } catch (error) {
+      console.error("Error registering client:", error)
       toast({
         title: "Error",
         description: "There was a problem registering the client. Please try again.",
@@ -300,7 +319,7 @@ export function RegisterClientForm() {
               />
             </div>
 
-            {/* Gender */}
+            {/* Gender - Simple, elegant radio buttons */}
             <FormField
               control={form.control}
               name="gender"
@@ -310,26 +329,37 @@ export function RegisterClientForm() {
                     Gender <span className="text-red-500">*</span>
                   </FormLabel>
                   <FormControl>
-                    <RadioGroup onValueChange={field.onChange} value={field.value} className="flex space-x-4">
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="male" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Male</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="female" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Female</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-2 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="other" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Other</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
+                    <div className="flex space-x-6">
+                      <label
+                        className="flex items-center space-x-2 cursor-pointer"
+                        onClick={() => field.onChange("male")}
+                      >
+                        <div
+                          className={cn(
+                            "h-5 w-5 rounded-full border flex items-center justify-center",
+                            field.value === "male" ? "border-primary bg-primary" : "border-gray-300",
+                          )}
+                        >
+                          {field.value === "male" && <div className="h-2.5 w-2.5 rounded-full bg-white"></div>}
+                        </div>
+                        <span className="text-sm font-medium">Male</span>
+                      </label>
+
+                      <label
+                        className="flex items-center space-x-2 cursor-pointer"
+                        onClick={() => field.onChange("female")}
+                      >
+                        <div
+                          className={cn(
+                            "h-5 w-5 rounded-full border flex items-center justify-center",
+                            field.value === "female" ? "border-primary bg-primary" : "border-gray-300",
+                          )}
+                        >
+                          {field.value === "female" && <div className="h-2.5 w-2.5 rounded-full bg-white"></div>}
+                        </div>
+                        <span className="text-sm font-medium">Female</span>
+                      </label>
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
