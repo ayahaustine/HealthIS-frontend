@@ -3,14 +3,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useAuth } from "@/contexts/auth-context"
 
 export function AccountSettings() {
-  // Static user data
-  const userData = {
-    firstName: "John",
-    lastName: "Doe",
-    email: "john.doe@healthis.com",
-  }
+  // Use the user data from auth context
+  const { user } = useAuth()
+
+  // Extract first name and last name from the full name
+  const nameParts = user?.name ? user.name.split(" ") : ["", ""]
+  const firstName = nameParts[0] || ""
+  const lastName = nameParts.slice(1).join(" ") || ""
 
   return (
     <div className="space-y-6">
@@ -22,15 +24,15 @@ export function AccountSettings() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">First Name</p>
-            <p className="text-base">{userData.firstName}</p>
+            <p className="text-base">{firstName}</p>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Last Name</p>
-            <p className="text-base">{userData.lastName}</p>
+            <p className="text-base">{lastName}</p>
           </div>
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Email Address</p>
-            <p className="text-base">{userData.email}</p>
+            <p className="text-base">{user?.email || "Loading..."}</p>
           </div>
           <div className="pt-2">
             <p className="text-sm text-muted-foreground italic">

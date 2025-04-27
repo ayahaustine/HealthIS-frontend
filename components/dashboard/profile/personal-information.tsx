@@ -1,41 +1,63 @@
 "use client"
+
+import { useAuth } from "@/contexts/auth-context"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 export function PersonalInformation() {
-  // Static user data
-  const userData = {
-    firstName: "John",
-    lastName: "Doe",
-    email: "john.doe@healthis.com",
+  const { user } = useAuth()
+
+  // Get initials for avatar fallback
+  const getInitials = (name: string | undefined) => {
+    if (!name) return "U"
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Personal Information</CardTitle>
-        <CardDescription>Your personal details</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-1">First Name</p>
-            <p className="text-base">{userData.firstName}</p>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Personal Information</CardTitle>
+          <CardDescription>View your personal information</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex flex-col items-center gap-4">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src="/images/avatar.png" alt="User avatar" />
+                <AvatarFallback className="text-2xl">{getInitials(user?.name)}</AvatarFallback>
+              </Avatar>
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">Standard Avatar</p>
+              </div>
+            </div>
+            <div className="flex-1 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">First Name</label>
+                  <div className="mt-1 p-2 border rounded-md bg-muted">
+                    {user?.name ? user.name.split(" ")[0] : "Loading..."}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Last Name</label>
+                  <div className="mt-1 p-2 border rounded-md bg-muted">
+                    {user?.name ? user.name.split(" ").slice(1).join(" ") : "Loading..."}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <div className="mt-1 p-2 border rounded-md bg-muted">{user?.email || "Loading..."}</div>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-1">Last Name</p>
-            <p className="text-base">{userData.lastName}</p>
-          </div>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-muted-foreground mb-1">Email</p>
-          <p className="text-base">{userData.email}</p>
-        </div>
-        <div className="pt-2">
-          <p className="text-sm text-muted-foreground italic">
-            Contact your administrator if you need to update your personal information.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

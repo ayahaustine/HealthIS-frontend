@@ -2,12 +2,26 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, FileText, Search, Settings, ChevronDown, Activity, Key, Menu, X } from "lucide-react"
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  Search,
+  Settings,
+  ChevronDown,
+  Activity,
+  Key,
+  Menu,
+  X,
+  Loader2,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { ProgramService, type Program } from "@/lib/program-service"
+import { eventBus, EVENTS } from "@/lib/event-bus"
 
 type NavItem = {
   title: string
@@ -23,6 +37,37 @@ export function Sidebar() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     programs: true,
   })
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState(false)
+  const [programsError, setProgramsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      setIsLoadingPrograms(true)
+      setProgramsError(null)
+      try {
+        const data = await ProgramService.getPrograms()
+        setPrograms(data)
+      } catch (error) {
+        console.error("Failed to fetch programs for sidebar:", error)
+        setProgramsError("Failed to load programs")
+      } finally {
+        setIsLoadingPrograms(false)
+      }
+    }
+
+    fetchPrograms()
+
+    // Subscribe to program created events
+    const unsubscribe = eventBus.subscribe(EVENTS.PROGRAM_CREATED, (newProgram: Program) => {
+      setPrograms((prevPrograms) => [newProgram, ...prevPrograms])
+    })
+
+    // Clean up subscription when component unmounts
+    return () => {
+      unsubscribe()
+    }
+  }, [])
 
   const toggleGroup = (group: string) => {
     setOpenGroups((prev) => ({
@@ -31,7 +76,8 @@ export function Sidebar() {
     }))
   }
 
-  const navItems: NavItem[] = [
+  // Default nav items without dynamic programs
+  const baseNavItems: NavItem[] = [
     {
       title: "Dashboard",
       href: "/dashboard",
@@ -56,18 +102,6 @@ export function Sidebar() {
           icon: FileText,
           isActive: pathname === "/dashboard/programs",
         },
-        {
-          title: "HIV Program",
-          href: "/dashboard/programs/hiv",
-          icon: Activity,
-          isActive: pathname === "/dashboard/programs/hiv",
-        },
-        {
-          title: "TB Program",
-          href: "/dashboard/programs/tb",
-          icon: Activity,
-          isActive: pathname === "/dashboard/programs/tb",
-        },
       ],
     },
     {
@@ -89,6 +123,34 @@ export function Sidebar() {
       isActive: pathname === "/dashboard/settings",
     },
   ]
+
+  // Add dynamic programs to the Programs dropdown
+  const navItems = baseNavItems.map((item) => {
+    if (item.title === "Programs" && item.children) {
+      return {
+        ...item,
+        children: [
+          ...item.children,
+          ...(isLoadingPrograms
+            ? [
+                {
+                  title: "Loading programs...",
+                  href: "#",
+                  icon: Loader2,
+                  isActive: false,
+                },
+              ]
+            : programs.map((program) => ({
+                title: program.name,
+                href: `/dashboard/programs/${program.uuid}`,
+                icon: Activity,
+                isActive: pathname === `/dashboard/programs/${program.uuid}`,
+              }))),
+        ],
+      }
+    }
+    return item
+  })
 
   return (
     <>
@@ -129,7 +191,7 @@ export function Sidebar() {
           </Button>
         </div>
 
-        <div className="py-4 px-3 space-y-1">
+        <div className="py-4 px-3 space-y-1 overflow-y-auto max-h-[calc(100vh-4rem)]">
           <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Main</div>
           {navItems.map((item, index) => (
             <div key={index} className="py-0.5">
@@ -153,19 +215,30 @@ export function Sidebar() {
                   </button>
                   {openGroups[item.title.toLowerCase()] && (
                     <div className="pl-12 mt-1 space-y-1">
-                      {item.children.map((child, childIndex) => (
-                        <Link
-                          key={childIndex}
-                          href={child.href}
-                          className={cn(
-                            "flex items-center px-4 py-1.5 text-sm rounded-md",
-                            child.isActive ? "bg-primary/10 text-primary" : "text-gray-700 hover:bg-gray-100",
-                          )}
-                        >
-                          <child.icon className="h-4 w-4 mr-3" />
-                          <span>{child.title}</span>
-                        </Link>
-                      ))}
+                      {item.children.map((child, childIndex) =>
+                        child.title === "Loading programs..." ? (
+                          <div
+                            key={childIndex}
+                            className="flex items-center px-4 py-1.5 text-sm rounded-md text-gray-500"
+                          >
+                            <Loader2 className="h-4 w-4 mr-3 animate-spin" />
+                            <span>{child.title}</span>
+                          </div>
+                        ) : (
+                          <Link
+                            key={childIndex}
+                            href={child.href}
+                            className={cn(
+                              "flex items-center px-4 py-1.5 text-sm rounded-md",
+                              child.isActive ? "bg-primary/10 text-primary" : "text-gray-700 hover:bg-gray-100",
+                            )}
+                          >
+                            <child.icon className="h-4 w-4 mr-3" />
+                            <span>{child.title}</span>
+                          </Link>
+                        ),
+                      )}
+                      {programsError && <div className="px-4 py-1.5 text-sm text-red-500">{programsError}</div>}
                     </div>
                   )}
                 </div>

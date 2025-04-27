@@ -24,9 +24,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { useAuth } from "@/contexts/auth-context"
 
 export function Header() {
+  const { logout, user } = useAuth()
   const [open, setOpen] = useState(false)
+  const [alertOpen, setAlertOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
@@ -64,6 +67,26 @@ export function Header() {
   const navigateTo = (path: string) => {
     router.push(path)
     setShowProfileMenu(false)
+  }
+
+  const handleLogout = async () => {
+    try {
+      setAlertOpen(false)
+      setShowProfileMenu(false)
+      await logout()
+    } catch (error) {
+      console.error("Error during logout:", error)
+    }
+  }
+
+  // Get initials for avatar fallback
+  const getInitials = (name: string | undefined) => {
+    if (!name) return "U"
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
   }
 
   return (
@@ -120,8 +143,8 @@ export function Header() {
             onClick={() => setShowProfileMenu(!showProfileMenu)}
           >
             <Avatar className="h-8 w-8">
-              <AvatarImage src="/compassionate-doctor-consultation.png" alt="Dr. John Doe" />
-              <AvatarFallback>JD</AvatarFallback>
+              <AvatarImage src="/images/avatar.png" alt="User avatar" />
+              <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
             </Avatar>
           </Button>
 
@@ -133,8 +156,8 @@ export function Header() {
             >
               <div className="py-1">
                 <div className="px-4 py-2 border-b">
-                  <p className="text-sm font-medium">Dr. John Doe</p>
-                  <p className="text-xs text-gray-500">john.doe@healthis.com</p>
+                  <p className="text-sm font-medium">{user?.name || "User"}</p>
+                  <p className="text-xs text-gray-500">{user?.email || "user@example.com"}</p>
                 </div>
                 <button
                   onClick={() => navigateTo("/dashboard/profile")}
@@ -151,7 +174,7 @@ export function Header() {
                   <span>Settings</span>
                 </button>
                 <div className="border-t"></div>
-                <AlertDialog>
+                <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
                   <AlertDialogTrigger asChild>
                     <button className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
                       <LogOut className="mr-2 h-4 w-4 text-red-600" />
@@ -165,7 +188,12 @@ export function Header() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => navigateTo("/signin")}>Log out</AlertDialogAction>
+                      <AlertDialogAction
+                        onClick={handleLogout}
+                        className="bg-red-600 hover:bg-red-700 focus:ring-red-500"
+                      >
+                        Log out
+                      </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
